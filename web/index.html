@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>下载器</title>
+<style>
+:root{
+  --bg:#000;--fg:#e1e1e1;--sub:#8a8a8a;--line:#1f1f1f;--btn:#141414;--btn-h:#1e1e1e;--sel:#e1e1e1;--sel-fg:#000;
+  --ok:#5ce07a;--err:#ff6b6b;--r:11px;
+  --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,"PingFang SC","Microsoft YaHei",monospace;
+}
+@media (prefers-color-scheme:light){:root{--bg:#fff;--fg:#000;--sub:#6e6e6e;--line:#ececec;--btn:#f4f4f4;--btn-h:#e9e9e9;--sel:#000;--sel-fg:#fff}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:14px/1.5 var(--mono)}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:var(--btn);border-radius:var(--r);padding:8px 13px;transition:background .12s}
+button:hover{background:var(--btn-h)}
+a{color:inherit}
+.app{display:flex;height:100%}
+/* 侧栏 */
+nav{width:84px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:6px;padding:18px 0;border-right:1px solid var(--line)}
+nav .logo{font-weight:700;font-size:20px;margin-bottom:16px;letter-spacing:-1px}
+nav button{width:62px;display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 0;background:transparent;color:var(--sub);font-size:12px}
+nav button svg{width:22px;height:22px}
+nav button.on{background:var(--btn);color:var(--fg)}
+main{flex:1;overflow-y:auto;position:relative}
+.page{display:none;min-height:100%}
+.page.on{display:block}
+/* 首页 */
+#home{display:none;flex-direction:column;align-items:center;justify-content:center;padding:24px 18px 120px}
+#home.on{display:flex}
+.hero{font-size:44px;font-weight:700;letter-spacing:-2px;margin-bottom:22px;user-select:none}
+.hero i{font-style:normal;color:var(--sub)}
+.omni{width:100%;max-width:640px}
+.field{display:flex;align-items:center;gap:8px;border:1.5px solid var(--line);border-radius:14px;padding:4px 4px 4px 14px;background:var(--bg);transition:border-color .15s}
+.field:focus-within{border-color:var(--fg)}
+.field svg{width:18px;height:18px;color:var(--sub);flex-shrink:0}
+.field input{flex:1;min-width:0;border:0;outline:0;background:transparent;padding:10px 0;font-size:15px}
+.field .go{width:40px;height:40px;padding:0;font-size:20px;font-weight:700;display:grid;place-items:center}
+.field .go:disabled{opacity:.35;cursor:default}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
+.seg{display:inline-flex;gap:4px;background:transparent}
+.seg button{padding:7px 12px;font-size:13px;display:flex;align-items:center;gap:6px}
+.seg button.on{background:var(--sel);color:var(--sel-fg)}
+.seg button svg{width:15px;height:15px}
+/* 队列 */
+.queue{width:100%;max-width:640px;margin-top:22px;display:flex;flex-direction:column;gap:8px}
+.job{display:flex;gap:12px;align-items:center;border:1px solid var(--line);border-radius:14px;padding:10px}
+.job img{width:84px;height:48px;object-fit:cover;border-radius:7px;background:var(--btn);flex-shrink:0}
+.job .ph{width:84px;height:48px;border-radius:7px;background:var(--btn);flex-shrink:0}
+.job .mid{flex:1;min-width:0}
+.job .tt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px}
+.job .st{font-size:12px;color:var(--sub);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.job.err .st{color:var(--err);white-space:normal}
+.job .bar{height:3px;background:var(--line);border-radius:3px;margin-top:6px;overflow:hidden}
+.job .bar i{display:block;height:100%;width:0;background:var(--fg);transition:width .35s}
+.job.done .bar i{background:var(--ok)}
+.job .act{display:flex;gap:6px}
+.job .act a,.job .act button{font-size:12px;padding:7px 11px;text-decoration:none;background:var(--btn);border-radius:9px}
+.job.done .act a{background:var(--sel);color:var(--sel-fg)}
+.spin{display:inline-block;width:15px;height:15px;border:2px solid var(--sub);border-top-color:transparent;border-radius:50%;animation:s .7s linear infinite}
+@keyframes s{to{transform:rotate(360deg)}}
+.foot{position:absolute;bottom:18px;left:0;right:0;text-align:center;font-size:12px;color:var(--sub);padding:0 16px}
+.foot b{color:var(--fg);font-weight:500}
+/* 设置 */
+.set{max-width:700px;margin:0 auto;padding:34px 20px 120px}
+.set h1{font-size:24px;margin:0 0 22px;letter-spacing:-.5px}
+.sec{border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:14px}
+.sec h2{font-size:15px;margin:0 0 4px}
+.sec p.d{color:var(--sub);font-size:12.5px;margin:0 0 12px}
+.sec .seg{flex-wrap:wrap}
+.sec + .sec{margin-top:0}
+.sub{color:var(--sub);font-size:12.5px;margin-top:10px}
+.prev{margin-top:10px;font-size:12.5px;padding:9px 11px;border-radius:9px;background:var(--btn);word-break:break-all}
+.ck{display:flex;flex-direction:column;gap:8px}
+.ck input,.ck textarea,.tok input{border:1px solid var(--line);background:var(--bg);border-radius:9px;padding:9px 11px;outline:0}
+.ck input:focus,.ck textarea:focus,.tok input:focus{border-color:var(--fg)}
+.ck textarea{min-height:110px;resize:vertical;font-size:12px}
+.cklist{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.cklist span{display:inline-flex;align-items:center;gap:6px;background:var(--btn);border-radius:8px;padding:5px 6px 5px 10px;font-size:12.5px}
+.cklist span button{padding:2px 7px;font-size:12px;background:transparent}
+.tok{display:flex;gap:8px}.tok input{flex:1}
+/* 选择弹层 */
+.sheet{position:fixed;inset:0;background:#000a;display:none;align-items:flex-end;justify-content:center;z-index:9}
+.sheet.on{display:flex}
+.sheet .box{background:var(--bg);border:1px solid var(--line);border-radius:18px 18px 0 0;width:100%;max-width:640px;max-height:78vh;display:flex;flex-direction:column}
+@media(min-width:700px){.sheet{align-items:center}.sheet .box{border-radius:18px}}
+.sheet .hd{padding:16px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px}
+.sheet .hd b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sheet .bd{overflow-y:auto;padding:8px}
+.pick{display:flex;gap:10px;align-items:center;padding:8px;border-radius:10px;cursor:pointer}
+.pick:hover{background:var(--btn)}
+.pick img{width:80px;height:45px;border-radius:6px;object-fit:cover;background:var(--btn);flex-shrink:0}
+.pick .tt{flex:1;min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px;padding:8px}
+.fgrid button{text-align:left;padding:10px 12px}
+.fgrid small{display:block;color:var(--sub);font-size:11.5px}
+.toast{position:fixed;left:50%;top:18px;transform:translateX(-50%) translateY(-80px);background:var(--sel);color:var(--sel-fg);padding:9px 16px;border-radius:10px;font-size:13px;transition:transform .25s;z-index:20;max-width:90vw}
+.toast.on{transform:translateX(-50%) translateY(0)}
+.about{max-width:700px;margin:0 auto;padding:34px 20px 120px;color:var(--sub);font-size:13.5px}
+.about h1{color:var(--fg);font-size:24px;margin:0 0 18px}
+.about h3{color:var(--fg);font-size:14px;margin:22px 0 6px}
+/* 移动端：底部导航 */
+@media(max-width:700px){
+  .app{flex-direction:column-reverse}
+  nav{width:100%;flex-direction:row;justify-content:space-around;padding:6px 0 calc(6px + env(safe-area-inset-bottom));border-right:0;border-top:1px solid var(--line)}
+  nav .logo{display:none}
+  .hero{font-size:36px}
+  .foot{position:static;margin-top:30px}
+  #home{padding-bottom:30px;justify-content:flex-start;padding-top:18vh}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <nav>
+    <div class="logo">⇣</div>
+    <button data-p="home" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 5-5m-5 5-5-5M4 20h16"/></svg>保存</button>
+    <button data-p="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>设置</button>
+    <button data-p="about"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>关于</button>
+  </nav>
+
+  <main>
+    <!-- 首页 -->
+    <section class="page on" id="home">
+      <div class="hero">下载<i>器</i></div>
+      <div class="omni">
+        <div class="field">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>
+          <input id="url" placeholder="粘贴链接或分享文案" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go">
+          <button class="go" id="go" disabled aria-label="下载">»</button>
+        </div>
+        <div class="row">
+          <div class="seg" id="modeSeg">
+            <button data-v="auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5z"/></svg>自动</button>
+            <button data-v="audio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>音频</button>
+            <button data-v="mute"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5 6 9H2v6h4l5 4zM22 9l-6 6M16 9l6 6"/></svg>静音</button>
+          </div>
+          <div class="seg">
+            <button id="pickBtn" title="手动选择画质">画质</button>
+            <button id="paste"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="3" width="8" height="4" rx="1"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/></svg>粘贴</button>
+          </div>
+        </div>
+      </div>
+      <div class="queue" id="queue"></div>
+      <div class="foot" id="foot">粘贴链接后按 » 即可 · 文件存到「下载」文件夹 · YouTube、哔哩哔哩、抖音、X 等 1800+ 站点</div>
+    </section>
+
+    <!-- 设置 -->
+    <section class="page" id="settings">
+      <div class="set">
+        <h1>设置</h1>
+        <div class="sec">
+          <h2>画质</h2>
+          <p class="d">选的画质不存在时，会自动降到最接近的一档。</p>
+          <div class="seg" data-k="quality">
+            <button data-v="max">最高</button><button data-v="2160">4K</button><button data-v="1440">1440p</button>
+            <button data-v="1080">1080p</button><button data-v="720">720p</button><button data-v="480">480p</button><button data-v="360">360p</button>
+          </div>
+        </div>
+        <div class="sec">
+          <h2>视频编码</h2>
+          <p class="d" id="codecDesc"></p>
+          <div class="seg" data-k="codec"><button data-v="h264">H.264</button><button data-v="av1">AV1</button><button data-v="vp9">VP9</button></div>
+        </div>
+        <div class="sec">
+          <h2>音频格式</h2>
+          <p class="d">用于“音频”模式。选“原始”时直接抽出音轨，不重新编码。</p>
+          <div class="seg" data-k="audio_format"><button data-v="best">原始</button><button data-v="mp3">MP3</button><button data-v="m4a">M4A</button><button data-v="opus">Opus</button><button data-v="wav">WAV</button></div>
+          <div class="sub">码率（仅重新编码时生效）</div>
+          <div class="seg" data-k="audio_bitrate" style="margin-top:6px"><button data-v="320">320k</button><button data-v="256">256k</button><button data-v="192">192k</button><button data-v="128">128k</button><button data-v="96">96k</button></div>
+        </div>
+        <div class="sec">
+          <h2>文件名</h2>
+          <div class="seg" data-k="filename"><button data-v="basic">简洁</button><button data-v="pretty">美观</button><button data-v="nerdy">详细</button></div>
+          <div class="prev" id="fnPrev"></div>
+        </div>
+        <div class="sec">
+          <h2>浏览器登录信息</h2>
+          <p class="d" id="browserDesc">遇到 B站高画质、YouTube 人机验证、抖音等需要登录的内容时，直接借用本机浏览器里已登录的账号，不用导出 Cookies。选 Chrome / Edge / Brave 会弹出钥匙串授权，点“允许”即可；选 Safari 需要先在 系统设置 → 隐私与安全性 → 完全磁盘访问权限 里打开「视频下载器」。</p>
+          <div class="seg" data-k="browser"><button data-v="">不使用</button><button data-v="chrome">Chrome</button><button data-v="safari">Safari</button><button data-v="edge">Edge</button><button data-v="firefox">Firefox</button><button data-v="brave">Brave</button></div>
+        </div>
+        <div class="sec">
+          <h2>登录 Cookies</h2>
+          <p class="d" id="ckDesc">一般用上面的“浏览器登录信息”就够了。浏览器读不到时，再手动粘贴 Netscape 格式的 cookies.txt（可用浏览器扩展 “Get cookies.txt LOCALLY” 导出）。只保存在这台电脑上。</p>
+          <div class="ck">
+            <input id="ckDomain" placeholder="域名，例如 youtube.com / bilibili.com / douyin.com，填 all 表示所有站点通用">
+            <textarea id="ckText" placeholder="粘贴 cookies.txt 内容"></textarea>
+            <div><button id="ckSave">保存 Cookies</button></div>
+          </div>
+          <div class="cklist" id="ckList"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 关于 -->
+    <section class="page" id="about">
+      <div class="about">
+        <h1>关于</h1>
+        <p id="aboutIntro">一个干净的本地视频下载器：没有广告，不追踪，只在这台电脑上运行。界面参考 cobalt，解析用 yt-dlp。文件直接存到「下载」文件夹。</p>
+        <h3>怎么用</h3>
+        <p>粘贴链接（整段分享文案也行）→ 按 »，会按“设置”里的画质和编码下载。想临时换画质，点“画质”手动选。播放列表和合集会弹出列表让你挑。</p>
+        <h3>下载失败？</h3>
+        <p id="aboutFail">· 提示需要登录或人机验证：到设置里选“浏览器登录信息”。<br>· 平台刚改版：yt-dlp 每天自动更新一次，退出后重新打开即可。<br>· 海外网站连不上：需要电脑本身能访问这些网站（开着系统代理即可）。</p>
+        <p id="ver" style="margin-top:26px"></p>
+        <p><button id="quitBtn">退出视频下载器</button>　关闭页面后也会自动退出。</p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="sheet" id="sheet"><div class="box"><div class="hd"><b id="shTitle"></b><button id="shClose">关闭</button></div><div class="bd" id="shBody"></div></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const DEF={mode:'auto',quality:'1080',codec:'h264',audio_format:'mp3',audio_bitrate:'192',filename:'basic',browser:''};
+const LOCAL=true;
+let NOSTORE=false;  // 本地模式：不在浏览器里留任何数据
+const ls={get(k,d){try{const v=localStorage.getItem(k);return v===null?d:JSON.parse(v)}catch(e){return d}},set(k,v){if(NOSTORE)return;try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+let S=Object.assign({},DEF,ls.get('vdl_settings',{}));
+let PLATFORM='darwin';
+const save=()=>ls.set('vdl_settings',S);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const dur=s=>{if(!s)return'';s=Math.round(s);const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;return(h?h+':'+String(m).padStart(2,'0'):m)+':'+String(x).padStart(2,'0')};
+function toast(t,ms=2600){const e=$('#toast');e.textContent=t;e.classList.add('on');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('on'),ms)}
+
+async function api(path,body,method){
+  const o={method:method||(body?'POST':'GET'),headers:{}};
+  if(body){o.headers['Content-Type']='application/json';o.body=JSON.stringify(body)}
+  const r=await fetch(path,o);
+  const j=await r.json().catch(()=>({error:'程序没有响应（'+r.status+'），请重新打开「视频下载器」'}));
+  if(!r.ok)throw new Error(j.error||('请求失败 '+r.status));
+  return j;
+}
+
+/* 导航 */
+function go(p){$$('.page').forEach(x=>x.classList.toggle('on',x.id===p));$$('nav button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));if(p==='settings')loadCookies()}
+$$('nav button').forEach(b=>b.onclick=()=>go(b.dataset.p));
+
+/* 分段按钮绑定 */
+function bindSeg(el,key,cb){
+  const paint=()=>[...el.children].forEach(b=>b.classList.toggle('on',b.dataset.v===S[key]));
+  [...el.children].forEach(b=>b.onclick=()=>{S[key]=b.dataset.v;save();paint();cb&&cb()});paint();
+}
+bindSeg($('#modeSeg'),'mode');
+$$('.seg[data-k]').forEach(el=>bindSeg(el,el.dataset.k,refreshDesc));
+function refreshDesc(){
+  $('#codecDesc').textContent={h264:'兼容性最好：iPhone 相册、微信、剪映都能直接打开。YouTube 上最高通常只有 1080p。',
+    av1:'画质好、体积小，能到 4K/8K。较老的设备可能放不了。',vp9:'YouTube 的 4K 常用这个编码，保存为 WebM/MKV，iPhone 相册不支持。'}[S.codec];
+  const ex={basic:'猫咪合集.mp4',pretty:'猫咪合集 - 某UP主 1080p.mp4',nerdy:'猫咪合集 [BV1xx411c7mD] 1080p avc1.mp4'};
+  $('#fnPrev').textContent=ex[S.filename];
+}
+refreshDesc();
+
+/* 输入 */
+const inp=$('#url');
+inp.addEventListener('input',()=>$('#go').disabled=!inp.value.trim());
+inp.addEventListener('keydown',e=>{if(e.key==='Enter')submit()});
+$('#go').onclick=()=>submit();
+$('#paste').onclick=async()=>{try{const t=await navigator.clipboard.readText();if(t){inp.value=t;$('#go').disabled=false;submit()}}catch(e){inp.focus();toast('浏览器不让读剪贴板，请长按输入框手动粘贴')}};
+$('#pickBtn').onclick=()=>submit(true);
+
+/* 解析 → 下载 */
+async function submit(manual){
+  const raw=inp.value.trim(); if(!raw)return;
+  if($('#go').dataset.lock){toast('首次运行正在准备组件，请稍等…');return}
+  const g=$('#go'); g.disabled=true; g.innerHTML='<span class="spin"></span>';
+  try{
+    const d=await api('/api/parse',{url:raw,browser:S.browser});
+    inp.value='';
+    if(d.playlist) openList(d);
+    else if(manual) openFormats(d);
+    else enqueue(d);
+  }catch(e){toast(e.message,5000)}
+  finally{g.innerHTML='»';g.disabled=!inp.value.trim()}
+}
+
+function enqueue(d,override={}){
+  const body={url:d.webpage_url||d.source_url||d.url,mode:S.mode,quality:S.quality,codec:S.codec,
+    audio_format:S.audio_format,audio_bitrate:S.audio_bitrate,filename:S.filename,title:d.title||'',
+    browser:S.browser,...override};
+  const el=document.createElement('div'); el.className='job';
+  const tag=body.format_id?'':(body.mode==='audio'?' · 音频':body.mode==='mute'?' · 静音':'');
+  el.innerHTML=`${d.thumbnail?`<img referrerpolicy="no-referrer" src="${esc(d.thumbnail)}" onerror="this.outerHTML='<div class=ph></div>'">`:'<div class="ph"></div>'}
+    <div class="mid"><div class="tt">${esc(d.title||body.url)}</div><div class="st">排队中${tag}</div><div class="bar"><i></i></div></div><div class="act"></div>`;
+  $('#queue').prepend(el);
+  api('/api/download',body).then(r=>poll(r.task_id,el)).catch(e=>fail(el,e.message));
+}
+function fail(el,m){el.classList.add('err');el.querySelector('.st').textContent=m;
+  const b=document.createElement('button');b.textContent='移除';b.onclick=()=>el.remove();el.querySelector('.act').replaceChildren(b)}
+async function poll(id,el){
+  try{
+    const t=await api('/api/task/'+id);
+    el.querySelector('.bar i').style.width=(t.progress||0)+'%';
+    if(t.status==='done'){
+      el.classList.add('done');
+      el.querySelector('.st').textContent=`已保存到「下载」 · ${t.size} · ${t.file}`;
+      const b=document.createElement('button');b.textContent=PLATFORM==='windows'?'打开所在文件夹':'在访达中显示';
+      b.onclick=()=>api('/api/reveal/'+id,{}).catch(e=>toast(e.message));
+      el.querySelector('.act').replaceChildren(b);
+      return;
+    }
+    if(t.status==='error')return fail(el,t.error);
+    el.querySelector('.st').textContent=[t.phase,t.progress?t.progress+'%':'',t.total?t.downloaded+'/'+t.total:'',t.speed].filter(Boolean).join(' · ');
+  }catch(e){el.querySelector('.st').textContent='连接中断，重试中…'}
+  setTimeout(()=>poll(id,el),1000);
+}
+
+/* 弹层 */
+function sheet(title,html){$('#shTitle').textContent=title;$('#shBody').innerHTML=html;$('#sheet').classList.add('on')}
+const closeSheet=()=>$('#sheet').classList.remove('on');
+$('#shClose').onclick=closeSheet; $('#sheet').onclick=e=>{if(e.target.id==='sheet')closeSheet()};
+
+function openFormats(d){
+  const fm=d.formats||[];
+  sheet(d.title,`<div class="fgrid">${fm.map((f,i)=>`<button data-i="${i}"><b>${esc(f.label)}</b><small>${esc([f.ext.toUpperCase(),f.codec,f.size].filter(Boolean).join(' · '))}</small></button>`).join('')}</div>`);
+  $$('#shBody .fgrid button').forEach(b=>b.onclick=()=>{
+    const f=fm[+b.dataset.i]; closeSheet();
+    if(f.type==='audio')enqueue(d,{mode:'audio'});
+    else if(f.type==='audio_raw')enqueue(d,{mode:'audio',audio_format:'best'});
+    else enqueue({...d,title:d.title+' ['+f.label+']'},{mode:S.mode==='mute'?'mute':'auto',format_id:f.id,quality:f.height?String(f.height):'max'});
+  });
+}
+function openList(d){
+  sheet(`${d.title} · ${d.count} 个`,`<div style="padding:4px 8px 10px"><button id="allBtn">全部下载</button></div>`+
+    d.entries.map((e,i)=>`<div class="pick" data-i="${i}">${e.thumbnail?`<img referrerpolicy="no-referrer" src="${esc(e.thumbnail)}" onerror="this.style.visibility='hidden'">`:''}<div class="tt">${i+1}. ${esc(e.title)}</div><span style="color:var(--sub);font-size:12px">${dur(e.duration)}</span></div>`).join(''));
+  $$('#shBody .pick').forEach(p=>p.onclick=()=>{const e=d.entries[+p.dataset.i];p.style.opacity=.4;enqueue({title:e.title,thumbnail:e.thumbnail,url:e.url})});
+  $('#allBtn').onclick=()=>{if(d.count>30&&!confirm(`确定下载全部 ${d.count} 个？`))return;closeSheet();d.entries.forEach(e=>enqueue({title:e.title,thumbnail:e.thumbnail,url:e.url}))};
+}
+
+/* Cookies */
+async function loadCookies(){
+  try{const r=await api('/api/cookies');$('#ckList').innerHTML=r.domains.length?r.domains.map(d=>`<span>${esc(d)}<button data-d="${esc(d)}">✕</button></span>`).join(''):'<span style="padding:5px 10px">还没有添加</span>';
+    $$('#ckList button').forEach(b=>b.onclick=async()=>{await api('/api/cookies/'+encodeURIComponent(b.dataset.d),null,'DELETE');loadCookies()})}
+  catch(e){$('#ckList').innerHTML=`<span style="padding:5px 10px">${esc(e.message)}</span>`}
+}
+$('#ckSave').onclick=async()=>{
+  const d=$('#ckDomain').value.trim().toLowerCase().replace(/^https?:\/\//,'').replace(/^www\./,'').split('/')[0], t=$('#ckText').value.trim();
+  if(!d||!t)return toast('域名和内容都要填');
+  try{await api('/api/cookies',{domain:d,text:t},'PUT');$('#ckText').value='';$('#ckDomain').value='';toast('已保存，下次解析就会用上');loadCookies()}catch(e){toast(e.message)}
+};
+
+/* 首次运行：等待 yt-dlp / ffmpeg 下载完成 */
+function waitReady(){
+  const foot=$('#foot'), g=$('#go'), old=foot.textContent;
+  g.dataset.lock='1';
+  const tick=async()=>{
+    let r; try{r=await (await fetch('/api/config',{cache:'no-store'})).json()}catch(e){return setTimeout(tick,1500)}
+    if(r.ready){
+      delete g.dataset.lock; foot.textContent=old; foot.style.color=''; g.disabled=!inp.value.trim();
+      $('#ver').textContent='yt-dlp '+r.yt_dlp; toast('准备完成，可以开始下载了'); return;
+    }
+    if(/失败|无法/.test(r.setup||'')){foot.style.color='var(--err)';foot.textContent='✘ '+r.setup;return}
+    foot.textContent='⏳ '+(r.setup||'正在准备…')+'（仅首次运行需要）';
+    setTimeout(tick,1000);
+  };
+  tick();
+}
+
+/* 启动 */
+(async()=>{
+  // 不在浏览器里留任何数据：设置只在本次打开期间有效
+  NOSTORE=true;
+  try{Object.keys(localStorage).filter(k=>k.startsWith('vdl_')).forEach(k=>localStorage.removeItem(k))}catch(e){}
+  let c;
+  try{c=await api('/api/config')}catch(e){toast(e.message,6000);return}
+  PLATFORM=c.platform||'darwin';
+  if(c.yt_dlp)$('#ver').textContent='yt-dlp '+c.yt_dlp;
+  // 心跳：页面关掉后，本地程序会在几秒内自动退出
+  const ping=()=>fetch('/api/ping',{cache:'no-store'}).catch(()=>{});
+  ping(); setInterval(ping,5000);
+  addEventListener('pagehide',()=>{try{navigator.sendBeacon('/api/bye')}catch(e){}});
+  $('#quitBtn').onclick=async()=>{try{await fetch('/api/quit')}catch(e){};document.body.innerHTML='<p style="padding:40px;font:15px var(--mono)">已退出。下次打开「视频下载器」即可。</p>'};
+  if(PLATFORM==='windows'){
+    const sf=document.querySelector('.seg[data-k=browser] [data-v=safari]'); if(sf)sf.remove();
+    if(S.browser==='safari')S.browser='';
+    $('#browserDesc').textContent='遇到 B站高画质、YouTube 人机验证、抖音等需要登录的内容时，借用本机浏览器里已登录的账号。Windows 上推荐 Firefox；新版 Chrome / Edge 对登录信息做了额外加密，经常读不到，读不到时请用下面的“登录 Cookies”手动粘贴。';
+    $$('.seg[data-k=browser] button').forEach(x=>x.classList.toggle('on',x.dataset.v===S.browser));
+  }
+  if(!c.ready) waitReady();
+  const q=new URLSearchParams(location.search).get('url');
+  if(q){inp.value=q;$('#go').disabled=false;history.replaceState(null,'','/');submit()}
+})();
+</script>
+</body>
+</html>
