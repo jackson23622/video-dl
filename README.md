@@ -38,7 +38,7 @@ irm https://raw.githubusercontent.com/jackson23622/video-dl/main/install.ps1 | i
    - 模式：**自动**（视频+音频）/ **音频** / **静音**
    - **画质**按钮：手动选这一次的分辨率
    - 播放列表和合集会弹出列表，可以挑着下，也可以全部下载
-   - **多语言配音视频**（YouTube 多音轨）：默认下载原声；想要其他语言，点“画质”，在上方“音轨语言”里选择
+   - **多语言配音视频**（YouTube 多音轨）：默认会弹出“选择配音”列表，原声标着“原声”，音轨多时可以搜索筛选语言（如输入“中文”“English”“ja”）。点“画质”时也能先选音轨再选分辨率
 3. 文件直接存进「下载」文件夹，点“在访达中显示”（Windows 上是“打开所在文件夹”）就能找到。
 
 **第一次打开**会自动下载 yt-dlp、ffmpeg，以及解析 YouTube 必需的 JavaScript 运行时 Deno（macOS 约 150MB，Windows 约 200MB），页面底部会显示进度，之后打开就是秒开。yt-dlp 每天自动检查一次更新。
@@ -53,6 +53,7 @@ irm https://raw.githubusercontent.com/jackson23622/video-dl/main/install.ps1 | i
 | 视频编码 | **H.264**（默认，兼容性最好，QuickTime、iPhone、微信、剪映都能直接打开）/ AV1 / VP9 |
 | 音频格式 | 原始 / MP3 / M4A / Opus / WAV，以及码率 |
 | 文件名 | 简洁 / 美观 / 详细 |
+| 配音音轨 | 多语言视频怎么处理：**每次手动选择**（默认）/ 自动用原声 / 优先中文 / 优先英语 / 优先日语。优先的语言不存在时自动用原声；批量下载播放列表时也按这个设置 |
 | 浏览器登录信息 | 下载需要登录的内容（B站高画质、YouTube 人机验证、抖音等）时，借用本机浏览器里已登录的账号 |
 | 登录 Cookies | 浏览器读不到时，手动粘贴 Netscape 格式的 cookies.txt |
 
@@ -71,6 +72,10 @@ irm https://raw.githubusercontent.com/jackson23622/video-dl/main/install.ps1 | i
 | 程序 | `/Applications/视频下载器.app`（没有写入权限时装到 `~/Applications`） | `%LOCALAPPDATA%\VideoDL\VideoDL.exe` |
 | yt-dlp、ffmpeg、Deno、cookies | `~/Library/Application Support/VideoDL/` | `%LOCALAPPDATA%\VideoDL\` |
 | 下载的视频 | `~/Downloads` | `C:\Users\你的用户名\Downloads` |
+
+### 便携模式
+
+如果程序和 yt-dlp 放在同一个文件夹（例如 `~/视频下载器/bin/vdl`），程序会自动进入便携模式：Deno、cookies、临时文件都放在这个文件夹里，不会写入 `~/Library` 或 `%LOCALAPPDATA%`。
 
 ## 卸载
 

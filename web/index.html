@@ -96,6 +96,13 @@ main{flex:1;overflow-y:auto;position:relative}
 .pick:hover{background:var(--btn)}
 .pick img{width:80px;height:45px;border-radius:6px;object-fit:cover;background:var(--btn);flex-shrink:0}
 .pick .tt{flex:1;min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.dubtop{padding:6px 8px 10px;display:flex;flex-direction:column;gap:8px}
+.dubtop input{border:1px solid var(--line);background:var(--bg);border-radius:9px;padding:9px 11px;outline:0}
+.dubtop input:focus{border-color:var(--fg)}
+.dub{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:11px 12px;margin-bottom:6px}
+.dub.on{background:var(--sel);color:var(--sel-fg)}.dub.on .lc{color:inherit;opacity:.7}
+.dub .nm{flex:1}.dub .lc{color:var(--sub);font-size:12px}
+.dub .star{font-size:11px;padding:2px 7px;border-radius:6px;background:var(--sel);color:var(--sel-fg)}
 .fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px;padding:8px}
 .fgrid button{text-align:left;padding:10px 12px}
 .fgrid small{display:block;color:var(--sub);font-size:11.5px}
@@ -180,6 +187,11 @@ main{flex:1;overflow-y:auto;position:relative}
           <div class="prev" id="fnPrev"></div>
         </div>
         <div class="sec">
+          <h2>配音音轨</h2>
+          <p class="d">YouTube 等多语言视频带有多条配音音轨时怎么处理。选“每次手动选择”会弹出音轨列表，可以搜索筛选语言；选优先某种语言时，视频里没有这种语言就用原声。</p>
+          <div class="seg" data-k="dub"><button data-v="ask">每次手动选择</button><button data-v="original">自动用原声</button><button data-v="zh">优先中文</button><button data-v="en">优先英语</button><button data-v="ja">优先日语</button></div>
+        </div>
+        <div class="sec">
           <h2>浏览器登录信息</h2>
           <p class="d" id="browserDesc">遇到 B站高画质、YouTube 人机验证、抖音等需要登录的内容时，直接借用本机浏览器里已登录的账号，不用导出 Cookies。选 Chrome / Edge / Brave 会弹出钥匙串授权，点“允许”即可；选 Safari 需要先在 系统设置 → 隐私与安全性 → 完全磁盘访问权限 里打开「视频下载器」。</p>
           <div class="seg" data-k="browser"><button data-v="">不使用</button><button data-v="chrome">Chrome</button><button data-v="safari">Safari</button><button data-v="edge">Edge</button><button data-v="firefox">Firefox</button><button data-v="brave">Brave</button></div>
@@ -218,7 +230,7 @@ main{flex:1;overflow-y:auto;position:relative}
 
 <script>
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-const DEF={mode:'auto',quality:'1080',codec:'h264',audio_format:'mp3',audio_bitrate:'192',filename:'basic',browser:''};
+const DEF={mode:'auto',quality:'1080',codec:'h264',audio_format:'mp3',audio_bitrate:'192',filename:'basic',browser:'',dub:'ask'};
 const LOCAL=true;
 let NOSTORE=false;  // 本地模式：不在浏览器里留任何数据
 const ls={get(k,d){try{const v=localStorage.getItem(k);return v===null?d:JSON.parse(v)}catch(e){return d}},set(k,v){if(NOSTORE)return;try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
@@ -275,10 +287,7 @@ async function submit(manual){
     inp.value='';
     if(d.playlist) openList(d);
     else if(manual) openFormats(d);
-    else{
-      enqueue(d);
-      if((d.audio_tracks||[]).length>1)toast(`这个视频有 ${d.audio_tracks.length} 条语言音轨，已按原声下载；想要其他语言，点「画质」选择`,5000);
-    }
+    else autoDub(d);
   }catch(e){toast(e.message,5000)}
   finally{g.innerHTML='»';g.disabled=!inp.value.trim()}
 }
@@ -319,27 +328,65 @@ function sheet(title,html){$('#shTitle').textContent=title;$('#shBody').innerHTM
 const closeSheet=()=>$('#sheet').classList.remove('on');
 $('#shClose').onclick=closeSheet; $('#sheet').onclick=e=>{if(e.target.id==='sheet')closeSheet()};
 
+/* 多语言配音 */
+const LANG_NAMES={zh:'中文',en:'英语',ja:'日语'};
+const tracksOf=d=>(S.mode==='mute'?[]:(d.audio_tracks||[]));
+const pickPref=(tracks,pref)=>tracks.find(t=>t.lang.toLowerCase().startsWith(pref));
+function trackTag(t){return t&&!t.original?' · '+t.name:''}
+function autoDub(d){
+  const tr=tracksOf(d);
+  if(tr.length<2)return enqueue(d);
+  if(S.dub==='ask')return openDub(d);
+  if(S.dub==='original'){enqueue(d);return toast(`这个视频有 ${tr.length} 条配音音轨，已下载原声。想换语言：设置 → 配音音轨`,4500)}
+  const t=pickPref(tr,S.dub);
+  if(t){enqueue({...d,title:d.title+trackTag(t)},{audio_lang:t.lang});toast(`已选择${t.name}音轨`)}
+  else{enqueue(d);toast(`这个视频没有${LANG_NAMES[S.dub]}配音，已下载原声`,4000)}
+}
+function dubList(tracks,onPick,selected){
+  return tracks.map(t=>`<button class="dub${t.lang===selected?' on':''}" data-l="${esc(t.lang)}"><span class="nm">${esc(t.name)}</span><span class="lc">${esc(t.lang)}</span>${t.original?'<span class="star">原声</span>':''}</button>`).join('');
+}
+function bindDubFilter(box,list){
+  const f=$(box); if(!f)return;
+  f.oninput=()=>{const q=f.value.trim().toLowerCase();
+    $$(list+' .dub').forEach(b=>b.style.display=!q||b.textContent.toLowerCase().includes(q)?'':'none')};
+}
+function openDub(d){
+  const tr=tracksOf(d);
+  const modeTxt={auto:'视频 + 所选音轨',audio:'仅音频'}[S.mode]||'视频';
+  sheet(`选择配音 · ${tr.length} 条音轨`,`<div class="dubtop"><div class="sub" style="margin:0">《${esc(d.title)}》　下载内容：${modeTxt}，画质按设置（${S.quality==='max'?'最高':S.quality+'p'}）</div>
+    ${tr.length>5?'<input id="dubQ" placeholder="搜索语言，例如 中文 / English / ja">':''}</div>
+    <div id="dubL" style="padding:0 8px">${dubList(tr)}</div>`);
+  bindDubFilter('#dubQ','#dubL');
+  $$('#dubL .dub').forEach(b=>b.onclick=()=>{
+    const t=tr.find(x=>x.lang===b.dataset.l); closeSheet();
+    enqueue({...d,title:d.title+trackTag(t)},t.original?{}:{audio_lang:t.lang});
+  });
+}
+
 function openFormats(d){
-  const fm=d.formats||[], tracks=d.audio_tracks||[];
+  const fm=d.formats||[], tracks=tracksOf(d);
   let lang=(tracks.find(t=>t.original)||tracks[0]||{}).lang||'';
-  const trackRow=tracks.length>1?`<div style="padding:8px 8px 0"><div class="sub" style="margin:0 0 6px">音轨语言（${tracks.length} 条）</div>
-    <div class="seg" id="langSeg" style="flex-wrap:wrap">${tracks.map(t=>`<button data-l="${esc(t.lang)}">${esc(t.name)}${t.original?' ★':''}</button>`).join('')}</div></div>`:'';
+  const trackRow=tracks.length>1?`<div class="dubtop"><div class="sub" style="margin:0">① 选配音音轨（${tracks.length} 条），② 再点下面的画质</div>
+    ${tracks.length>5?'<input id="fmtQ" placeholder="搜索语言，例如 中文 / English / ja">':''}</div>
+    <div id="langL" style="padding:0 8px;max-height:34vh;overflow-y:auto">${dubList(tracks,null,lang)}</div>`:'';
   sheet(d.title,trackRow+`<div class="fgrid">${fm.map((f,i)=>`<button data-i="${i}"><b>${esc(f.label)}</b><small>${esc([f.ext.toUpperCase(),f.codec,f.size].filter(Boolean).join(' · '))}</small></button>`).join('')}</div>`);
-  const paint=()=>$$('#langSeg button').forEach(b=>b.classList.toggle('on',b.dataset.l===lang));
-  $$('#langSeg button').forEach(b=>b.onclick=()=>{lang=b.dataset.l;paint()});paint();
+  bindDubFilter('#fmtQ','#langL');
+  $$('#langL .dub').forEach(b=>b.onclick=()=>{lang=b.dataset.l;$$('#langL .dub').forEach(x=>x.classList.toggle('on',x===b))});
   $$('#shBody .fgrid button').forEach(b=>b.onclick=()=>{
     const f=fm[+b.dataset.i]; closeSheet();
-    const t=tracks.find(x=>x.lang===lang), al=tracks.length>1?{audio_lang:lang}:{}, tag=t&&!t.original?' · '+t.name:'';
+    const t=tracks.find(x=>x.lang===lang), al=t&&!t.original?{audio_lang:lang}:{}, tag=trackTag(t);
     if(f.type==='audio')enqueue({...d,title:d.title+tag},{mode:'audio',...al});
     else if(f.type==='audio_raw')enqueue({...d,title:d.title+tag},{mode:'audio',audio_format:'best',...al});
     else enqueue({...d,title:d.title+' ['+f.label+']'+tag},{mode:S.mode==='mute'?'mute':'auto',format_id:f.id,quality:f.height?String(f.height):'max',...al});
   });
 }
+// 列表批量下载时不逐个解析：按“配音音轨”设置传语言偏好，没有该语言时自动用原声
+const listDub=()=>['zh','en','ja'].includes(S.dub)?{audio_lang:S.dub}:{};
 function openList(d){
   sheet(`${d.title} · ${d.count} 个`,`<div style="padding:4px 8px 10px"><button id="allBtn">全部下载</button></div>`+
     d.entries.map((e,i)=>`<div class="pick" data-i="${i}">${e.thumbnail?`<img referrerpolicy="no-referrer" src="${esc(e.thumbnail)}" onerror="this.style.visibility='hidden'">`:''}<div class="tt">${i+1}. ${esc(e.title)}</div><span style="color:var(--sub);font-size:12px">${dur(e.duration)}</span></div>`).join(''));
-  $$('#shBody .pick').forEach(p=>p.onclick=()=>{const e=d.entries[+p.dataset.i];p.style.opacity=.4;enqueue({title:e.title,thumbnail:e.thumbnail,url:e.url})});
-  $('#allBtn').onclick=()=>{if(d.count>30&&!confirm(`确定下载全部 ${d.count} 个？`))return;closeSheet();d.entries.forEach(e=>enqueue({title:e.title,thumbnail:e.thumbnail,url:e.url}))};
+  $$('#shBody .pick').forEach(p=>p.onclick=()=>{const e=d.entries[+p.dataset.i];p.style.opacity=.4;enqueue({title:e.title,thumbnail:e.thumbnail,url:e.url},listDub())});
+  $('#allBtn').onclick=()=>{if(d.count>30&&!confirm(`确定下载全部 ${d.count} 个？`))return;closeSheet();d.entries.forEach(e=>enqueue({title:e.title,thumbnail:e.thumbnail,url:e.url},listDub()))};
 }
 
 /* Cookies */

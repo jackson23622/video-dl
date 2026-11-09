@@ -113,6 +113,26 @@ func unzipOne(zipPath, name, dst string) error {
 	return fmt.Errorf("压缩包里没有 %s", name)
 }
 
+// 便携模式：程序和 yt-dlp 放在同一个文件夹（如 ~/视频下载器/bin/vdl）时，
+// 所有组件、cookies、临时文件都留在这个文件夹里，不写 ~/Library
+func portableMode() {
+	p, err := os.Executable()
+	if err != nil {
+		return
+	}
+	if r, err := filepath.EvalSymlinks(p); err == nil {
+		p = r
+	}
+	dir := filepath.Dir(p)
+	if strings.Contains(dir, ".app/Contents/") || !exists(filepath.Join(dir, exe("yt-dlp"))) {
+		return
+	}
+	binDir = dir
+	dataDir = filepath.Dir(dir)
+	cookieDir = filepath.Join(dataDir, "cookies")
+	log.Println("portable mode:", dataDir)
+}
+
 func setupTools() {
 	os.MkdirAll(binDir, 0o755)
 	os.MkdirAll(cookieDir, 0o755)
@@ -635,7 +655,7 @@ func langFilter(l string) string {
 	if l == "" || !langRe.MatchString(l) {
 		return ""
 	}
-	return "[language=" + l + "]"
+	return "[language^=" + l + "]" // 前缀匹配：zh 可匹配 zh-Hans / zh-CN
 }
 
 var nameTpl = map[string]string{
@@ -859,6 +879,7 @@ func main() {
 		time.Sleep(500 * time.Millisecond)
 		return
 	}
+	portableMode()
 	go setupTools()
 
 	mux := http.NewServeMux()
