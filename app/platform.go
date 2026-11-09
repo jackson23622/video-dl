@@ -59,6 +59,19 @@ func ytdlpURL() string {
 	return "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos"
 }
 
+// denoURL 返回 Deno（JavaScript 运行时）的下载地址
+func denoURL() string {
+	base := "https://github.com/denoland/deno/releases/latest/download/"
+	switch {
+	case isWin():
+		return base + "deno-x86_64-pc-windows-msvc.zip"
+	case runtime.GOARCH == "arm64":
+		return base + "deno-aarch64-apple-darwin.zip"
+	default:
+		return base + "deno-x86_64-apple-darwin.zip"
+	}
+}
+
 // ffmpegZips 返回 ffmpeg / ffprobe 的下载地址（Windows 是一个包里同时带两个）
 func ffmpegZips() map[string]string {
 	if isWin() {

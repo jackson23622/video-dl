@@ -40,6 +40,7 @@ var (
 	cookieDir = filepath.Join(dataDir, "cookies")
 	outDir   = filepath.Join(home, "Downloads")
 	ytdlp    = ""
+	denoPath = "" // YouTube 解析需要的 JavaScript 运行时（yt-dlp 2025.11 起必需）
 	ffmpegDir = ""
 
 	setupMu  sync.Mutex
@@ -170,6 +171,21 @@ func setupTools() {
 	} else {
 		ffmpegDir = filepath.Dir(ff)
 	}
+	// Deno：yt-dlp 解 YouTube 签名必需，缺了会丢格式（多语言配音视频尤其明显）。失败不阻塞启动
+	denoPath = pick("deno")
+	if denoPath == "" {
+		setSetup("正在下载 YouTube 解析组件 Deno（约 45MB）…")
+		z := filepath.Join(binDir, "deno.zip")
+		dst := filepath.Join(binDir, exe("deno"))
+		if err := download(denoURL(), z); err != nil {
+			log.Println("下载 deno 失败：", err)
+		} else if err := unzipOne(z, exe("deno"), dst); err != nil {
+			log.Println("解压 deno 失败：", err)
+		} else {
+			denoPath = dst
+		}
+		os.Remove(z)
+	}
 	if !isWin() {
 		exec.Command("xattr", "-dr", "com.apple.quarantine", binDir).Run()
 	}
@@ -238,6 +254,9 @@ func cookieFor(u string) string {
 func baseArgs(u, browser string) []string {
 	a := []string{"--no-warnings", "--ffmpeg-location", ffmpegDir, "--socket-timeout", "20", "--retries", "3",
 		"--concurrent-fragments", "4"}
+	if denoPath != "" {
+		a = append(a, "--js-runtimes", "deno:"+denoPath)
+	}
 	if browsers[browser] {
 		a = append(a, "--cookies-from-browser", browser)
 	} else if c := cookieFor(u); c != "" {
@@ -356,7 +375,8 @@ func simplifyFormats(info M) []M {
 	none := func(v string) bool { return v == "" || v == "none" }
 	hasAudioOnly := false
 	for _, f := range list {
-		if str(f, "vcodec") == "none" && !none(str(f, "acodec")) {
+		// 纯音频：没有视频轨，且音频编码不是 none（YouTube 配音音轨常是 HLS，编码显示为未知）
+		if str(f, "vcodec") == "none" && str(f, "acodec") != "none" && str(f, "ext") != "mhtml" {
 			hasAudioOnly = true
 		}
 	}
@@ -447,6 +467,52 @@ func simplifyFormats(info M) []M {
 	return out
 }
 
+// audioTracks 列出配音视频的各语言音轨（原声排第一）；只有一条时返回空
+func audioTracks(info M) []M {
+	fmts, _ := info["formats"].([]any)
+	seen := map[string]M{}
+	var order []string
+	for _, x := range fmts {
+		f, ok := x.(M)
+		if !ok || str(f, "vcodec") != "none" || str(f, "language") == "" {
+			continue
+		}
+		lang := str(f, "language")
+		note := str(f, "format_note")
+		orig := strings.Contains(strings.ToLower(note), "original") || num(f, "language_preference") >= 10
+		name := note
+		for _, cut := range []string{"Untested, ", ", low", ", medium", ", high", ", ultralow", " (default)"} {
+			name = strings.ReplaceAll(name, cut, "")
+		}
+		name = strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(name, "original", "原声"), "dubbed-auto", "AI 配音"))
+		name = strings.TrimSpace(strings.ReplaceAll(name, "dubbed", "配音"))
+		name = strings.Trim(name, " ,-")
+		if name == "" {
+			name = lang
+		}
+		if t, ok := seen[lang]; ok {
+			if orig {
+				t["original"] = true
+			}
+			continue
+		}
+		seen[lang] = M{"lang": lang, "name": name, "original": orig}
+		order = append(order, lang)
+	}
+	if len(order) < 2 {
+		return nil
+	}
+	out := []M{}
+	for _, l := range order {
+		if seen[l]["original"] == true {
+			out = append([]M{seen[l]}, out...)
+		} else {
+			out = append(out, seen[l])
+		}
+	}
+	return out
+}
+
 func runJSON(args []string) (M, error) {
 	cmd := command(ytdlp, args...)
 	var stderr strings.Builder
@@ -526,7 +592,8 @@ func parseURL(u, browser string, depth int) (M, error) {
 	}
 	return M{"playlist": false, "id": info["id"], "title": title, "uploader": up, "duration": info["duration"],
 		"thumbnail": thumb(info), "platform": str(info, "extractor_key"), "webpage_url": wu,
-		"view_count": info["view_count"], "upload_date": info["upload_date"], "formats": simplifyFormats(info)}, nil
+		"view_count": info["view_count"], "upload_date": info["upload_date"], "formats": simplifyFormats(info),
+		"audio_tracks": audioTracks(info)}, nil
 }
 
 // ---------------------------------------------------------------- 下载任务
@@ -559,6 +626,16 @@ type DLReq struct {
 	FormatID     string `json:"format_id"`
 	Title        string `json:"title"`
 	Browser      string `json:"browser"`
+	AudioLang    string `json:"audio_lang"` // 配音视频：指定音轨语言，空 = 原声
+}
+
+var langRe = regexp.MustCompile(`^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$`)
+
+func langFilter(l string) string {
+	if l == "" || !langRe.MatchString(l) {
+		return ""
+	}
+	return "[language=" + l + "]"
 }
 
 var nameTpl = map[string]string{
@@ -578,17 +655,23 @@ func buildFormat(r DLReq) (string, string) {
 	if r.Codec == "vp9" {
 		container = "webm/mkv"
 	}
+	L := langFilter(r.AudioLang)
 	if r.FormatID != "" {
-		return r.FormatID + "/bv*" + h + "+ba/b" + h + "/b", container
+		id := r.FormatID
+		if v, ok := strings.CutSuffix(id, "+bestaudio"); ok && L != "" {
+			id = v + "+ba" + L + "/" + v + "+ba"
+		}
+		return id + "/bv*" + h + "+ba/b" + h + "/b", container
 	}
 	if r.Mode == "mute" {
 		return "bv*" + h + cf + "/bv*" + h + "/bv*/b", container
 	}
-	aud := "+ba[acodec^=mp4a]"
-	if r.Codec == "vp9" {
-		aud = "+ba[acodec=opus]"
+	// 音频不按编码筛选：yt-dlp 默认按语言优先级排序，会选中原声；合并时统一转成 AAC
+	f := ""
+	if L != "" {
+		f = "bv*" + h + cf + "+ba" + L + "/bv*" + h + "+ba" + L + "/"
 	}
-	return "bv*" + h + cf + aud + "/bv*" + h + cf + "+ba/bv*" + h + "+ba/b" + h + "/bv*+ba/b", container
+	return f + "bv*" + h + cf + "+ba/bv*" + h + "+ba/b" + h + "/bv*+ba/b", container
 }
 
 var safeAudio = map[string]bool{"best": true, "mp3": true, "m4a": true, "opus": true, "wav": true}
@@ -616,7 +699,7 @@ func runTask(t *Task, r DLReq) {
 		if !safeAudio[af] {
 			af = "mp3"
 		}
-		args = append(args, "-f", "bestaudio/best", "-x", "--audio-format", af)
+		args = append(args, "-f", "ba"+langFilter(r.AudioLang)+"/bestaudio/best", "-x", "--audio-format", af)
 		if af != "best" {
 			br := r.AudioBitrate
 			if _, err := strconv.Atoi(br); err != nil {

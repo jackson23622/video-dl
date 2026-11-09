@@ -38,9 +38,10 @@ irm https://raw.githubusercontent.com/jackson23622/video-dl/main/install.ps1 | i
    - 模式：**自动**（视频+音频）/ **音频** / **静音**
    - **画质**按钮：手动选这一次的分辨率
    - 播放列表和合集会弹出列表，可以挑着下，也可以全部下载
+   - **多语言配音视频**（YouTube 多音轨）：默认下载原声；想要其他语言，点“画质”，在上方“音轨语言”里选择
 3. 文件直接存进「下载」文件夹，点“在访达中显示”（Windows 上是“打开所在文件夹”）就能找到。
 
-**第一次打开**会自动下载 yt-dlp 和 ffmpeg（macOS 约 100MB，Windows 约 150MB），页面底部会显示进度，之后打开就是秒开。yt-dlp 每天自动检查一次更新。
+**第一次打开**会自动下载 yt-dlp、ffmpeg，以及解析 YouTube 必需的 JavaScript 运行时 Deno（macOS 约 150MB，Windows 约 200MB），页面底部会显示进度，之后打开就是秒开。yt-dlp 每天自动检查一次更新。
 
 **退出**：关掉页面后程序几秒内自动退出（有任务在下载时不会退出），也可以在「关于」页点“退出视频下载器”。程序没有窗口，也没有程序坞/任务栏图标。
 
@@ -68,7 +69,7 @@ irm https://raw.githubusercontent.com/jackson23622/video-dl/main/install.ps1 | i
 |  | macOS | Windows |
 |---|---|---|
 | 程序 | `/Applications/视频下载器.app`（没有写入权限时装到 `~/Applications`） | `%LOCALAPPDATA%\VideoDL\VideoDL.exe` |
-| yt-dlp、ffmpeg、cookies | `~/Library/Application Support/VideoDL/` | `%LOCALAPPDATA%\VideoDL\` |
+| yt-dlp、ffmpeg、Deno、cookies | `~/Library/Application Support/VideoDL/` | `%LOCALAPPDATA%\VideoDL\` |
 | 下载的视频 | `~/Downloads` | `C:\Users\你的用户名\Downloads` |
 
 ## 卸载
@@ -78,6 +79,7 @@ irm https://raw.githubusercontent.com/jackson23622/video-dl/main/install.ps1 | i
 
 ## 常见问题
 
+- **YouTube 视频解析失败或画质选项很少**：yt-dlp 需要 Deno 才能完整解析 YouTube，程序会自动下载。如果是从旧版本更新来的，重新运行一键安装命令，再打开一次，等页面底部的准备进度走完即可。
 - **YouTube 4K 在 QuickTime 里放不了**：YouTube 的 4K 只有 VP9/AV1 编码。日常选 1080p + H.264 最稳。
 - **提示需要登录**：在设置里选“浏览器登录信息”，并确认该浏览器里已经登录了对应网站。
 - **平台改版导致失败**：yt-dlp 每天自动更新；退出后重新打开应用，会再检查一次（距上次检查超过 24 小时才会更新）。

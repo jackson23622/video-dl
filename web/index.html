@@ -275,7 +275,10 @@ async function submit(manual){
     inp.value='';
     if(d.playlist) openList(d);
     else if(manual) openFormats(d);
-    else enqueue(d);
+    else{
+      enqueue(d);
+      if((d.audio_tracks||[]).length>1)toast(`这个视频有 ${d.audio_tracks.length} 条语言音轨，已按原声下载；想要其他语言，点「画质」选择`,5000);
+    }
   }catch(e){toast(e.message,5000)}
   finally{g.innerHTML='»';g.disabled=!inp.value.trim()}
 }
@@ -317,13 +320,19 @@ const closeSheet=()=>$('#sheet').classList.remove('on');
 $('#shClose').onclick=closeSheet; $('#sheet').onclick=e=>{if(e.target.id==='sheet')closeSheet()};
 
 function openFormats(d){
-  const fm=d.formats||[];
-  sheet(d.title,`<div class="fgrid">${fm.map((f,i)=>`<button data-i="${i}"><b>${esc(f.label)}</b><small>${esc([f.ext.toUpperCase(),f.codec,f.size].filter(Boolean).join(' · '))}</small></button>`).join('')}</div>`);
+  const fm=d.formats||[], tracks=d.audio_tracks||[];
+  let lang=(tracks.find(t=>t.original)||tracks[0]||{}).lang||'';
+  const trackRow=tracks.length>1?`<div style="padding:8px 8px 0"><div class="sub" style="margin:0 0 6px">音轨语言（${tracks.length} 条）</div>
+    <div class="seg" id="langSeg" style="flex-wrap:wrap">${tracks.map(t=>`<button data-l="${esc(t.lang)}">${esc(t.name)}${t.original?' ★':''}</button>`).join('')}</div></div>`:'';
+  sheet(d.title,trackRow+`<div class="fgrid">${fm.map((f,i)=>`<button data-i="${i}"><b>${esc(f.label)}</b><small>${esc([f.ext.toUpperCase(),f.codec,f.size].filter(Boolean).join(' · '))}</small></button>`).join('')}</div>`);
+  const paint=()=>$$('#langSeg button').forEach(b=>b.classList.toggle('on',b.dataset.l===lang));
+  $$('#langSeg button').forEach(b=>b.onclick=()=>{lang=b.dataset.l;paint()});paint();
   $$('#shBody .fgrid button').forEach(b=>b.onclick=()=>{
     const f=fm[+b.dataset.i]; closeSheet();
-    if(f.type==='audio')enqueue(d,{mode:'audio'});
-    else if(f.type==='audio_raw')enqueue(d,{mode:'audio',audio_format:'best'});
-    else enqueue({...d,title:d.title+' ['+f.label+']'},{mode:S.mode==='mute'?'mute':'auto',format_id:f.id,quality:f.height?String(f.height):'max'});
+    const t=tracks.find(x=>x.lang===lang), al=tracks.length>1?{audio_lang:lang}:{}, tag=t&&!t.original?' · '+t.name:'';
+    if(f.type==='audio')enqueue({...d,title:d.title+tag},{mode:'audio',...al});
+    else if(f.type==='audio_raw')enqueue({...d,title:d.title+tag},{mode:'audio',audio_format:'best',...al});
+    else enqueue({...d,title:d.title+' ['+f.label+']'+tag},{mode:S.mode==='mute'?'mute':'auto',format_id:f.id,quality:f.height?String(f.height):'max',...al});
   });
 }
 function openList(d){
